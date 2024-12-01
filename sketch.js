@@ -11,7 +11,7 @@ function preload() {
   bgImage = loadImage('./assets/pexels-philippedonn-1169754.jpg');
   obstacleImage = loadImage('./assets/icon.png');
   targetImage = loadImage('./assets/Moon.png');
-  followerImage = loadImage('./assets/Planet3.png'); // Load follower image asset
+  followerImage = loadImage('./assets/Planet3.png'); 
 }
 
 function setup() {
