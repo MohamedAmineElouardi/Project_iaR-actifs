@@ -1,4 +1,5 @@
 Suiveurs et Cible 
+
 Description
 Ce projet simule un groupe de véhicules poursuivant un leader. Le leader suit la position de la souris, et les suiveurs suivent le leader tout en évitant des obstacles fixes. La cible est représentée par une image et suit la position de la souris.
 
