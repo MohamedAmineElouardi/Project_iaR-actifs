@@ -1,168 +1,124 @@
-let pursuers = [];
+let vehicles = [];
 let target;
-let obstacles = [];
-let bgImage;
-let obstacleImage;
-let targetImage;
-let followerImage;
+let mode = "snake";
+let vitesseMaxSlider, accelerationMaxSlider, pathLengthSlider, moonCountSlider;
+let bg, leaderImage, followerImage, predatorImage;
+let predator;
 
 function preload() {
-  // Load your background, obstacle, target, and follower images
-  bgImage = loadImage('./assets/pexels-philippedonn-1169754.jpg');
-  obstacleImage = loadImage('./assets/icon.png');
-  targetImage = loadImage('./assets/Moon.png');
-  followerImage = loadImage('./assets/Planet3.png'); 
+  bg = loadImage('assets/space.jpg');
+  leaderImage = loadImage('assets/Planet.png');
+  followerImage = loadImage('assets/Moon.png');
+  predatorImage = loadImage('assets/Planet3.png');
 }
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
 
-  // Resume AudioContext on user interaction
-  getAudioContext().resume();
+  target = createVector(random(width), random(height));
+  predator = new Predator(random(width), random(height));
 
-  // Create the leader (the first vehicle)
-  pursuers.push(new Vehicle(100, 100, true)); // Leader has a flag
+  vitesseMaxSlider = createSlider(1, 20, 2, 1);
+  vitesseMaxSlider.position(920, 10);
+  createLabel("Vitesse Max", vitesseMaxSlider);
 
-  // Create 6 followers that will follow the leader
-  for (let i = 0; i < 6; i++) {
-    let follower = new Vehicle(100, 100 + (i + 1) * 20, false); // Followers
-    pursuers.push(follower);
-  }
+  accelerationMaxSlider = createSlider(0.1, 2, 0.25, 0.01);
+  accelerationMaxSlider.position(920, 40);
+  createLabel("Accélération Max", accelerationMaxSlider);
 
-  // Create fixed obstacles with your asset
-  obstacles.push(new Obstacle(width / 4, height / 2, 100));
-  obstacles.push(new Obstacle(width / 2, height / 4, 100));
-  obstacles.push(new Obstacle(width / 2, height / 1.5, 100));
-  obstacles.push(new Obstacle(width / 1.5, height / 2, 100));
+  pathLengthSlider = createSlider(10, 150, 20, 1);
+  pathLengthSlider.position(920, 70);
+  createLabel("Longueur de la Traînée", pathLengthSlider);
+
+  moonCountSlider = createSlider(1, 20, 10, 1);
+  moonCountSlider.position(920, 100);
+  createLabel("Nombre de Lunes", moonCountSlider);
 }
 
 function draw() {
-  // Draw the background image
-  image(bgImage, 0, 0, width, height);
+  image(bg, 0, 0, width, height);
 
-  target = createVector(mouseX, mouseY);
+  let moonCount = moonCountSlider.value();
+  adjustVehicleCount(moonCount);
 
-  // Draw the target using your target image
-  image(targetImage, target.x - 16, target.y - 16, 32, 32); // Adjust the size if needed
+  target.x = mouseX;
+  target.y = mouseY;
 
-  // Draw obstacles using the image
-  obstacles.forEach(o => o.show());
+  fill(255, 0, 0);
+  noStroke();
+  circle(target.x, target.y, 32);
 
-  // Update and draw each pursuer
-  for (let i = 0; i < pursuers.length; i++) {
-    let pursuer = pursuers[i];
+  let maxSpeed = vitesseMaxSlider.value();
+  let maxForce = accelerationMaxSlider.value();
+  let pathLength = pathLengthSlider.value();
 
-    if (i === 0) {
-      // The leader (first pursuer) follows the target (the mouse)
-      pursuer.applyBehaviors(target, obstacles);
-    } else {
-      // The followers follow the vehicle ahead of them
-      let leader = pursuers[i - 1];
-      pursuer.applyBehaviors(leader.position, obstacles);
-    }
+  fill(255);
+  textSize(16);
+  text("Changer le mode : 'l' pour Leader, 's' pour Snake", 10, height - 30);
 
-    pursuer.update();
-    pursuer.show();
+  if (mode === "snake") {
+    drawSnake(maxSpeed, maxForce, pathLength);
+  } else if (mode === "leader") {
+    drawLeaderFollower(maxSpeed, maxForce, pathLength);
+  }
+
+  predator.chase(vehicles);
+  predator.update();
+  predator.show();
+}
+
+function drawSnake(maxSpeed, maxForce, pathLength) {
+  vehicles[0].applyBehaviors(target);
+  vehicles[0].maxSpeed = maxSpeed;
+  vehicles[0].maxForce = maxForce;
+  vehicles[0].pathLength = pathLength;
+  vehicles[0].update();
+  vehicles[0].edges();
+  vehicles[0].show();
+
+  for (let i = 1; i < vehicles.length; i++) {
+    vehicles[i].applyBehaviors(vehicles[i - 1].pos);
+    vehicles[i].maxSpeed = maxSpeed;
+    vehicles[i].maxForce = maxForce;
+    vehicles[i].pathLength = pathLength;
+    vehicles[i].update();
+    vehicles[i].edges();
+    vehicles[i].show();
   }
 }
 
-function mousePressed() {
-  if (getAudioContext().state !== 'running') {
-    getAudioContext().resume();
-    console.log("AudioContext resumed");
+function drawLeaderFollower(maxSpeed, maxForce, pathLength) {
+  vehicles.forEach((vehicle, i) => {
+    let neighbors = vehicles.filter((_, j) => j !== i);
+    vehicle.applyBehaviors(target, neighbors);
+    vehicle.maxSpeed = maxSpeed;
+    vehicle.maxForce = maxForce;
+    vehicle.pathLength = pathLength;
+    vehicle.update();
+    vehicle.edges();
+    vehicle.show();
+  });
+}
+
+function adjustVehicleCount(count) {
+  while (vehicles.length < count) {
+    vehicles.push(new Vehicle(random(width), random(height), vehicles.length === 0));
+  }
+  while (vehicles.length > count) {
+    vehicles.pop();
   }
 }
 
-// Updated Vehicle class
-class Vehicle {
-  constructor(x, y, isLeader) {
-    this.position = createVector(x, y);
-    this.velocity = createVector(0, 0);
-    this.acceleration = createVector(0, 0);
-    this.maxSpeed = 4;
-    this.maxForce = 0.1;
-    this.size = 16;
-    this.isLeader = isLeader; // Flag to differentiate leader and followers
-  }
-
-  applyBehaviors(target, obstacles) {
-    let seekForce = this.seek(target);
-    let avoidForce = this.avoid(obstacles);
-    seekForce.mult(1);
-    avoidForce.mult(5);
-
-    this.acceleration.add(seekForce);
-    this.acceleration.add(avoidForce);
-  }
-
-  seek(target) {
-    let desired = p5.Vector.sub(target, this.position);
-    desired.normalize();
-    desired.mult(this.maxSpeed);
-
-    let steering = p5.Vector.sub(desired, this.velocity);
-    steering.limit(this.maxForce);
-    return steering;
-  }
-
-  avoid(obstacles) {
-    let steering = createVector(0, 0);
-    let count = 0;
-
-    for (let o of obstacles) {
-      let distance = dist(this.position.x, this.position.y, o.position.x, o.position.y);
-      if (distance < o.size + this.size) {
-        let diff = p5.Vector.sub(this.position, o.position);
-        diff.normalize();
-        diff.div(distance);
-        steering.add(diff);
-        count++;
-      }
-    }
-
-    if (count > 0) {
-      steering.div(count);
-    }
-
-    if (steering.mag() > 0) {
-      steering.normalize();
-      steering.mult(this.maxSpeed);
-      steering.sub(this.velocity);
-      steering.limit(this.maxForce);
-    }
-
-    return steering;
-  }
-
-  update() {
-    this.velocity.add(this.acceleration);
-    this.velocity.limit(this.maxSpeed);
-    this.position.add(this.velocity);
-    this.acceleration.mult(0);
-  }
-
-  show() {
-    if (this.isLeader) {
-      // Draw the leader (green circle)
-      fill(0, 255, 0);
-      noStroke();
-      ellipse(this.position.x, this.position.y, this.size);
-    } else {
-      // Draw followers using the follower image
-      image(followerImage, this.position.x - this.size / 2, this.position.y - this.size / 2, this.size, this.size);
-    }
-  }
+function createLabel(label, slider) {
+  let lib = createP(label);
+  lib.position(slider.x + slider.width + 10, slider.y - 10);
+  lib.style("color", "white");
 }
 
-// Updated Obstacle class
-class Obstacle {
-  constructor(x, y, size) {
-    this.position = createVector(x, y);
-    this.size = size;
-  }
-
-  show() {
-    // Draw the obstacle image centered on its position
-    image(obstacleImage, this.position.x - this.size, this.position.y - this.size, this.size * 2, this.size * 2);
+function keyPressed() {
+  if (key === "s") {
+    mode = "snake";
+  } else if (key === "l") {
+    mode = "leader";
   }
 }
